@@ -1,0 +1,121 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:6
+    container_name: eproject-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: eproject
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - eproject-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: eproject-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - eproject-network
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  auth-service:
+    build:
+      context: ./auth
+      dockerfile: Dockerfile
+    container_name: eproject-auth
+    ports:
+      - "7070:7070"
+    environment:
+      - PORT=7070
+      - MONGODB_URI=mongodb://mongodb:27017/eproject
+      - JWT_SECRET=your-secret-key-here
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - eproject-network
+    restart: unless-stopped
+
+  product-service:
+    build:
+      context: ./product
+      dockerfile: Dockerfile
+    container_name: eproject-product
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - MONGODB_URI=mongodb://mongodb:27017/eproject
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - eproject-network
+    restart: unless-stopped
+
+  order-service:
+    build:
+      context: ./order
+      dockerfile: Dockerfile
+    container_name: eproject-order
+    ports:
+      - "9090:9090"
+    environment:
+      - PORT=9090
+      - MONGODB_URI=mongodb://mongodb:27017/eproject
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - eproject-network
+    restart: unless-stopped
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: eproject-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - AUTH_SERVICE_URL=http://auth-service:7070
+      - PRODUCT_SERVICE_URL=http://product-service:8080
+      - ORDER_SERVICE_URL=http://order-service:9090
+    depends_on:
+      - auth-service
+      - product-service
+      - order-service
+    networks:
+      - eproject-network
+    restart: unless-stopped
+
+networks:
+  eproject-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
