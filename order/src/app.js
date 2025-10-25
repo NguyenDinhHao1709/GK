@@ -26,10 +26,10 @@ class App {
 
   async setupOrderConsumer() {
     console.log("Connecting to RabbitMQ...");
-  
+
     setTimeout(async () => {
       try {
-        const amqpServer = "amqp://rabbitmq:5672";
+        const amqpServer = config.rabbitMQURI;
         const connection = await amqp.connect(amqpServer);
         console.log("Connected to RabbitMQ");
         const channel = await connection.createChannel();

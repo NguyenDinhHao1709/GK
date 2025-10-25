@@ -1,9 +1,9 @@
 require('dotenv').config();
 
 module.exports = {
-    mongoURI: process.env.MONGODB_ORDER_URI || 'mongodb://localhost/orders',
-    rabbitMQURI: 'amqp://localhost',
+    mongoURI: process.env.MONGODB_URI || process.env.MONGODB_ORDER_URI || 'mongodb://localhost/orders',
+    rabbitMQURI: process.env.RABBITMQ_URL || 'amqp://localhost',
     rabbitMQQueue: 'orders',
-    port: 3002
+    port: process.env.PORT || 9090
 };
   
